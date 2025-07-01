@@ -16,14 +16,9 @@ print_color() {
 # Function to prompt for password
 get_password() {
     while true; do
-        print_color "blue" "Enter a password for root user (minimum 8 characters):"
+        print_color "blue" "Enter a password for root user:"
         read -s root_password
         echo
-        
-        if [ ${#root_password} -lt 8 ]; then
-            print_color "red" "Password must be at least 8 characters long. Please try again."
-            continue
-        fi
         
         print_color "blue" "Confirm password:"
         read -s confirm_password
