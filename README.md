@@ -4,14 +4,17 @@ Bash script for setting up SSH access with password authentication on RunPod ins
 
 ## Usage
 
-
+WGET should always work
 ```bash
-curl -sSL https://raw.githubusercontent.com/justinwlin/Runpod-SSH-Password/main/setup_ssh.sh | bash
+wget -qO- https://raw.githubusercontent.com/justinwlin/Runpod-SSH-Password/main/passwordrunpod.sh | bash
 ```
 
+Curl (not everything has curl, but usually should too)
 ```bash
-wget -qO- https://raw.githubusercontent.com/justinwlin/Runpod-SSH-Password/main/setup_ssh.sh | bash
+curl -sSL https://raw.githubusercontent.com/justinwlin/Runpod-SSH-Password/main/passwordrunpod.sh | bash
 ```
+
+
 
 ## What it does
 
