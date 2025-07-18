@@ -6,8 +6,11 @@ Bash script for setting up SSH access with password authentication on RunPod ins
 
 
 ```bash
-chmod +x passwordrunpod.sh
-bash passwordrunpod.sh
+curl -sSL https://raw.githubusercontent.com/justinwlin/Runpod-SSH-Password/main/setup_ssh.sh | bash
+```
+
+```bash
+wget -qO- https://raw.githubusercontent.com/justinwlin/Runpod-SSH-Password/main/setup_ssh.sh | bash
 ```
 
 ## What it does
