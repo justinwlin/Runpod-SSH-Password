@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-RunPod File Transfer Tool v2.1
+RunPod File Transfer Tool v2.2
 A CLI utility for transferring files between RunPod instances using SCP.
 Author: Assistant
 Last Updated: 2025-08-12
@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 
 # Script version
-VERSION = "2.1"
+VERSION = "2.2"
 SCRIPT_NAME = "RunPod File Transfer Tool"
 
 class Colors:
@@ -359,16 +359,16 @@ def perform_transfer(source_path, user, host, port, password):
             else:
                 print_error("Please enter 1, 2, or 3")
     
-    # Get destination path
-    if compress:
-        archive_name = f"{source_path_obj.name}.{compress_format}"
-        default_dest = f"/workspace/{archive_name}"
-    else:
-        default_dest = f"/workspace/{source_path_obj.name}"
+    # Smart destination handling
+    print_info("Determining optimal destination path...")
+    smart_dest = smart_destination_path(source_path, user, host, port, password, compress, compress_format)
     
-    dest_path = input(f"{Colors.BOLD}Destination path on remote server [{default_dest}]: {Colors.ENDC}").strip()
+    dest_path = input(f"{Colors.BOLD}Destination path [{smart_dest}]: {Colors.ENDC}").strip()
     if not dest_path:
-        dest_path = default_dest
+        dest_path = smart_dest
+    else:
+        # User provided custom path, still check for conflicts
+        dest_path = resolve_destination_conflict(user, host, port, password, dest_path, source_path_obj.name)
     
     # Handle compression
     temp_archive = None
@@ -468,7 +468,119 @@ def perform_transfer(source_path, user, host, port, password):
         
         return False
 
-def auto_extract_remote(user, host, port, password, archive_path, compress_format):
+def install_remote_dependencies(user, host, port, password):
+    """Install unzip and other dependencies on remote server"""
+    print_info("Installing extraction tools on remote server...")
+    
+    try:
+        # Install unzip and tar
+        install_cmd = "apt-get update -qq && apt-get install -y unzip"
+        
+        cmd = ['sshpass', '-p', password, 'ssh', '-o', 'StrictHostKeyChecking=no',
+               f'{user}@{host}', '-p', port, install_cmd]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        
+        if result.returncode == 0:
+            print_success("Remote dependencies installed successfully!")
+            return True
+        else:
+            print_warning(f"Could not install dependencies: {result.stderr}")
+            return False
+            
+    except Exception as e:
+        print_warning(f"Failed to install remote dependencies: {e}")
+        return False
+
+def generate_unique_filename(base_path):
+    """Generate a unique filename by appending timestamp and random ID"""
+    import time
+    import random
+    
+    timestamp = int(time.time())
+    random_id = random.randint(1000, 9999)
+    
+    path_obj = Path(base_path)
+    if path_obj.suffix:
+        # Has extension (file)
+        stem = path_obj.stem
+        suffix = path_obj.suffix
+        parent = path_obj.parent
+        unique_name = f"{stem}_{timestamp}_{random_id}{suffix}"
+    else:
+        # No extension (directory)
+        parent = path_obj.parent
+        unique_name = f"{path_obj.name}_{timestamp}_{random_id}"
+    
+    return str(parent / unique_name)
+
+def check_remote_path_exists(user, host, port, password, remote_path):
+    """Check if a path exists on remote server"""
+    try:
+        check_cmd = f"test -e '{remote_path}' && echo 'EXISTS' || echo 'NOT_EXISTS'"
+        
+        cmd = ['sshpass', '-p', password, 'ssh', '-o', 'StrictHostKeyChecking=no',
+               f'{user}@{host}', '-p', port, check_cmd]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        
+        if result.returncode == 0:
+            return result.stdout.strip() == 'EXISTS'
+        else:
+            return False
+            
+    except Exception:
+        return False
+
+def resolve_destination_conflict(user, host, port, password, dest_path, source_name):
+    """Resolve destination conflicts by checking remote and auto-renaming"""
+    original_dest = dest_path
+    
+    # Check if destination exists
+    if check_remote_path_exists(user, host, port, password, dest_path):
+        print_warning(f"Destination '{dest_path}' already exists on remote server!")
+        
+        # Generate unique destination
+        if dest_path.endswith('/'):
+            # Directory destination, append unique name
+            new_dest = dest_path + generate_unique_filename(source_name).split('/')[-1]
+        else:
+            # File destination, make it unique
+            new_dest = generate_unique_filename(dest_path)
+        
+        print_success(f"Auto-resolved to unique destination: {new_dest}")
+        return new_dest
+    
+    return dest_path
+
+def smart_destination_path(source_path, user, host, port, password, compress=False, compress_format="zip"):
+    """Intelligently determine the best destination path"""
+    source_path_obj = Path(source_path)
+    source_abs = os.path.abspath(source_path)
+    
+    # Determine base destination
+    if compress:
+        archive_name = f"{source_path_obj.name}.{compress_format}"
+        base_dest = f"/workspace/{archive_name}"
+    else:
+        base_dest = f"/workspace/{source_path_obj.name}"
+    
+    # Check for recursion (copying directory into itself)
+    if not compress and source_path_obj.is_dir():
+        # Check if we're trying to copy a directory into itself
+        dest_parent = "/workspace"
+        if source_abs == dest_parent or source_abs.startswith(dest_parent + "/"):
+            print_warning("Detected potential recursion - copying directory into itself!")
+            
+            # Auto-resolve by using a safe destination
+            safe_name = f"{source_path_obj.name}_transfer_{int(__import__('time').time())}"
+            base_dest = f"/tmp/{safe_name}"
+            print_success(f"Auto-resolved to safe destination: {base_dest}")
+    
+    # Resolve any naming conflicts
+    final_dest = resolve_destination_conflict(user, host, port, password, base_dest, source_path_obj.name)
+    
+    return final_dest
     """Automatically extract archive on remote server"""
     print_info("Extracting archive on remote server...")
     
