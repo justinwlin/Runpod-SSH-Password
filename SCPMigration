@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-RunPod File Transfer Tool v2.2
+RunPod File Transfer Tool v2.3
 A CLI utility for transferring files between RunPod instances using SCP.
 Author: Assistant
 Last Updated: 2025-08-12
@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 
 # Script version
-VERSION = "2.2"
+VERSION = "2.3"
 SCRIPT_NAME = "RunPod File Transfer Tool"
 
 class Colors:
@@ -333,31 +333,17 @@ def perform_transfer(source_path, user, host, port, password):
     source_path_obj = Path(source_path)
     is_directory = source_path_obj.is_dir()
     
-    # Ask about compression for directories
+    # Automatic transfer method selection
     compress = False
     compress_format = "zip"
     
     if is_directory:
-        print(f"\n{Colors.CYAN}Directory transfer options:{Colors.ENDC}")
-        print(f"  1. Direct transfer (may fail with nested/long paths)")
-        print(f"  2. Compress to ZIP then transfer (recommended)")
-        print(f"  3. Compress to TAR.GZ then transfer")
-        
-        while True:
-            choice = input(f"\n{Colors.BOLD}Choose transfer method (1-3): {Colors.ENDC}").strip()
-            if choice == "1":
-                compress = False
-                break
-            elif choice == "2":
-                compress = True
-                compress_format = "zip"
-                break
-            elif choice == "3":
-                compress = True
-                compress_format = "tar.gz"
-                break
-            else:
-                print_error("Please enter 1, 2, or 3")
+        print(f"\n{Colors.CYAN}📁 Directory detected - using ZIP compression for reliable transfer{Colors.ENDC}")
+        compress = True
+        compress_format = "zip"
+    else:
+        print(f"\n{Colors.CYAN}📄 File detected - using direct SCP transfer{Colors.ENDC}")
+        compress = False
     
     # Smart destination handling
     print_info("Determining optimal destination path...")
@@ -415,6 +401,7 @@ def perform_transfer(source_path, user, host, port, password):
     
     # Build SCP command
     try:
+        # All transfers are now either files (direct) or compressed archives
         cmd = ['sshpass', '-p', password, 'scp', '-o', 'StrictHostKeyChecking=no',
                '-P', port, source_to_transfer, f'{user}@{host}:{dest_path}']
         
@@ -431,16 +418,23 @@ def perform_transfer(source_path, user, host, port, password):
             
             # Provide extraction instructions
             if compress:
+                # Install unzip first
+                print_info("Installing unzip on destination server...")
+                unzip_installed = install_remote_dependencies(user, host, port, password)
+                
                 print_info("To extract on the destination server:")
                 if compress_format == "zip":
                     print(f"  {Colors.BOLD}unzip '{dest_path}'{Colors.ENDC}")
                 else:
                     print(f"  {Colors.BOLD}tar -xzf '{dest_path}'{Colors.ENDC}")
                     
-                # Offer to auto-extract
-                auto_extract = input(f"\n{Colors.YELLOW}Auto-extract on destination server? (y/N): {Colors.ENDC}").strip().lower()
-                if auto_extract == 'y':
-                    return auto_extract_remote(user, host, port, password, dest_path, compress_format)
+                # Offer to auto-extract only if unzip was installed successfully
+                if unzip_installed or compress_format == "tar.gz":
+                    auto_extract = input(f"\n{Colors.YELLOW}Auto-extract on destination server? (y/N): {Colors.ENDC}").strip().lower()
+                    if auto_extract == 'y':
+                        return auto_extract_remote(user, host, port, password, dest_path, compress_format)
+                else:
+                    print_warning("Unzip installation failed. Please extract manually using the command above.")
             
             return True
         else:
@@ -466,6 +460,33 @@ def perform_transfer(source_path, user, host, port, password):
         if temp_archive and os.path.exists(temp_archive):
             os.remove(temp_archive)
         
+        return False
+
+def auto_extract_remote(user, host, port, password, archive_path, compress_format):
+    """Automatically extract archive on remote server"""
+    print_info("Extracting archive on remote server...")
+    
+    try:
+        if compress_format == "zip":
+            extract_cmd = f"cd $(dirname '{archive_path}') && unzip -o '{archive_path}' && rm '{archive_path}'"
+        else:
+            extract_cmd = f"cd $(dirname '{archive_path}') && tar -xzf '{archive_path}' && rm '{archive_path}'"
+        
+        cmd = ['sshpass', '-p', password, 'ssh', '-o', 'StrictHostKeyChecking=no',
+               f'{user}@{host}', '-p', port, extract_cmd]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            print_success("Archive extracted and cleaned up on remote server!")
+            return True
+        else:
+            print_error(f"Extraction failed: {result.stderr}")
+            print_info("You can extract manually using the commands shown above.")
+            return False
+            
+    except Exception as e:
+        print_error(f"Auto-extraction error: {e}")
         return False
 
 def install_remote_dependencies(user, host, port, password):
