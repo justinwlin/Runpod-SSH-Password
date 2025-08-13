@@ -1,0 +1,356 @@
+#!/usr/bin/env python3
+"""
+RunPod File Transfer Tool
+A CLI utility for transferring files between RunPod instances using SCP.
+"""
+
+import os
+import sys
+import subprocess
+import re
+from pathlib import Path
+
+class Colors:
+    HEADER = '\033[95m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    GREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+
+def print_header(text):
+    print(f"\n{Colors.HEADER}{'='*50}{Colors.ENDC}")
+    print(f"{Colors.HEADER}{text.center(50)}{Colors.ENDC}")
+    print(f"{Colors.HEADER}{'='*50}{Colors.ENDC}")
+
+def print_success(text):
+    print(f"{Colors.GREEN}✓ {text}{Colors.ENDC}")
+
+def print_error(text):
+    print(f"{Colors.FAIL}✗ {text}{Colors.ENDC}")
+
+def print_warning(text):
+    print(f"{Colors.WARNING}⚠ {text}{Colors.ENDC}")
+
+def print_info(text):
+    print(f"{Colors.CYAN}ℹ {text}{Colors.ENDC}")
+
+def check_ssh_installed():
+    """Check if SSH client is installed"""
+    try:
+        subprocess.run(['ssh', '-V'], capture_output=True, check=True)
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
+def check_scp_installed():
+    """Check if SCP is installed"""
+    try:
+        subprocess.run(['scp'], capture_output=True)
+        return True
+    except FileNotFoundError:
+        return False
+
+def install_ssh():
+    """Install SSH client"""
+    print_info("Installing SSH client...")
+    try:
+        # Try to install openssh-client
+        subprocess.run(['apt', 'update'], check=True, capture_output=True)
+        subprocess.run(['apt', 'install', '-y', 'openssh-client'], check=True, capture_output=True)
+        print_success("SSH client installed successfully!")
+        return True
+    except subprocess.CalledProcessError:
+        print_error("Failed to install SSH client. Please install manually.")
+        return False
+
+def parse_ssh_command(ssh_command):
+    """Parse SSH command to extract host, port, and user"""
+    # Pattern: ssh user@host -p port
+    pattern = r'ssh\s+(\w+)@([\d\.]+)\s+-p\s+(\d+)'
+    match = re.match(pattern, ssh_command.strip())
+    
+    if match:
+        user, host, port = match.groups()
+        return user, host, port
+    else:
+        print_error("Invalid SSH command format. Expected: ssh user@host -p port")
+        return None, None, None
+
+def list_files_and_folders(path="."):
+    """List files and folders in the given path"""
+    try:
+        items = []
+        path_obj = Path(path).resolve()
+        
+        # Add parent directory option if not at root
+        if path_obj != path_obj.parent:
+            items.append(("../", "📁 Parent Directory", True))
+        
+        # List directories first, then files
+        for item in sorted(path_obj.iterdir(), key=lambda x: (x.is_file(), x.name.lower())):
+            if item.is_dir():
+                items.append((str(item), f"📁 {item.name}/", True))
+            else:
+                size = item.stat().st_size
+                size_str = format_file_size(size)
+                items.append((str(item), f"📄 {item.name} ({size_str})", False))
+        
+        return items, str(path_obj)
+    except PermissionError:
+        print_error(f"Permission denied accessing {path}")
+        return [], path
+    except Exception as e:
+        print_error(f"Error listing directory: {e}")
+        return [], path
+
+def format_file_size(size_bytes):
+    """Format file size in human readable format"""
+    if size_bytes == 0:
+        return "0 B"
+    
+    units = ['B', 'KB', 'MB', 'GB', 'TB']
+    unit_index = 0
+    size = float(size_bytes)
+    
+    while size >= 1024 and unit_index < len(units) - 1:
+        size /= 1024
+        unit_index += 1
+    
+    if unit_index == 0:
+        return f"{int(size)} {units[unit_index]}"
+    else:
+        return f"{size:.1f} {units[unit_index]}"
+
+def select_file_or_folder():
+    """Interactive file/folder selection"""
+    current_path = os.getcwd()
+    
+    while True:
+        print_header("FILE/FOLDER SELECTION")
+        items, current_path = list_files_and_folders(current_path)
+        
+        if not items:
+            print_error("No items found in current directory")
+            return None
+        
+        print(f"\n{Colors.BOLD}Current directory: {current_path}{Colors.ENDC}")
+        print(f"\n{Colors.CYAN}Select a file or folder to transfer:{Colors.ENDC}")
+        
+        for i, (path, display_name, is_dir) in enumerate(items, 1):
+            print(f"{Colors.BLUE}{i:2d}.{Colors.ENDC} {display_name}")
+        
+        print(f"\n{Colors.WARNING}0. Cancel transfer{Colors.ENDC}")
+        
+        try:
+            choice = input(f"\n{Colors.BOLD}Enter your choice (0-{len(items)}): {Colors.ENDC}").strip()
+            
+            if choice == '0':
+                return None
+            
+            choice_idx = int(choice) - 1
+            if 0 <= choice_idx < len(items):
+                selected_path, display_name, is_dir = items[choice_idx]
+                
+                if selected_path == "../":
+                    # Navigate to parent directory
+                    current_path = str(Path(current_path).parent)
+                    continue
+                elif is_dir and not display_name.startswith("📄"):
+                    # Navigate into directory
+                    current_path = selected_path
+                    continue
+                else:
+                    # File or folder selected for transfer
+                    return selected_path
+            else:
+                print_error("Invalid choice. Please try again.")
+                
+        except ValueError:
+            print_error("Please enter a valid number.")
+        except KeyboardInterrupt:
+            print("\n\nTransfer cancelled by user.")
+            return None
+
+def get_connection_details():
+    """Get SSH connection details from user"""
+    print_header("SSH CONNECTION DETAILS")
+    
+    print(f"{Colors.CYAN}Please provide the SSH connection details for the destination pod:{Colors.ENDC}")
+    
+    while True:
+        ssh_command = input(f"\n{Colors.BOLD}Enter SSH command (e.g., ssh root@213.173.111.95 -p 17958): {Colors.ENDC}").strip()
+        
+        user, host, port = parse_ssh_command(ssh_command)
+        if user and host and port:
+            break
+        print_error("Please enter a valid SSH command.")
+    
+    password = input(f"{Colors.BOLD}Enter password: {Colors.ENDC}").strip()
+    
+    return user, host, port, password
+
+def test_ssh_connection(user, host, port, password):
+    """Test SSH connection"""
+    print_info("Testing SSH connection...")
+    
+    try:
+        # Use sshpass if available, otherwise prompt user
+        cmd = ['sshpass', '-p', password, 'ssh', '-o', 'StrictHostKeyChecking=no', 
+               '-o', 'ConnectTimeout=10', f'{user}@{host}', '-p', port, 'echo "Connection successful"']
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        
+        if result.returncode == 0:
+            print_success("SSH connection test successful!")
+            return True
+        else:
+            print_error(f"SSH connection failed: {result.stderr}")
+            return False
+            
+    except FileNotFoundError:
+        print_warning("sshpass not found. Please ensure you can connect manually.")
+        return True  # Assume it will work
+    except subprocess.TimeoutExpired:
+        print_error("SSH connection timed out.")
+        return False
+    except Exception as e:
+        print_error(f"Error testing connection: {e}")
+        return False
+
+def perform_transfer(source_path, user, host, port, password):
+    """Perform the file transfer using SCP"""
+    print_header("FILE TRANSFER")
+    
+    source_path_obj = Path(source_path)
+    is_directory = source_path_obj.is_dir()
+    
+    # Get destination path
+    default_dest = f"/workspace/{source_path_obj.name}"
+    dest_path = input(f"{Colors.BOLD}Destination path on remote server [{default_dest}]: {Colors.ENDC}").strip()
+    if not dest_path:
+        dest_path = default_dest
+    
+    print_info(f"Transferring {'directory' if is_directory else 'file'}: {source_path}")
+    print_info(f"To: {user}@{host}:{dest_path}")
+    
+    # Build SCP command
+    try:
+        if is_directory:
+            cmd = ['sshpass', '-p', password, 'scp', '-o', 'StrictHostKeyChecking=no',
+                   '-P', port, '-r', source_path, f'{user}@{host}:{dest_path}']
+        else:
+            cmd = ['sshpass', '-p', password, 'scp', '-o', 'StrictHostKeyChecking=no',
+                   '-P', port, source_path, f'{user}@{host}:{dest_path}']
+        
+        print_info("Starting transfer...")
+        result = subprocess.run(cmd, text=True)
+        
+        if result.returncode == 0:
+            print_success("Transfer completed successfully!")
+            return True
+        else:
+            print_error("Transfer failed!")
+            return False
+            
+    except FileNotFoundError:
+        print_error("sshpass not found. Falling back to manual SCP command.")
+        print_info("Please run the following command manually:")
+        
+        if is_directory:
+            manual_cmd = f"scp -P {port} -r '{source_path}' {user}@{host}:{dest_path}"
+        else:
+            manual_cmd = f"scp -P {port} '{source_path}' {user}@{host}:{dest_path}"
+        
+        print(f"{Colors.BOLD}{manual_cmd}{Colors.ENDC}")
+        return False
+    except Exception as e:
+        print_error(f"Transfer error: {e}")
+        return False
+
+def install_sshpass():
+    """Install sshpass for password automation"""
+    print_info("Installing sshpass for automated transfers...")
+    try:
+        subprocess.run(['apt', 'update'], check=True, capture_output=True)
+        subprocess.run(['apt', 'install', '-y', 'sshpass'], check=True, capture_output=True)
+        print_success("sshpass installed successfully!")
+        return True
+    except subprocess.CalledProcessError:
+        print_warning("Could not install sshpass. Manual password entry will be required.")
+        return False
+
+def main():
+    """Main function"""
+    print_header("RUNPOD FILE TRANSFER TOOL")
+    print(f"{Colors.CYAN}Welcome! This tool helps you transfer files between RunPod instances.{Colors.ENDC}")
+    
+    # Check and install dependencies
+    print_info("Checking dependencies...")
+    
+    if not check_ssh_installed():
+        print_warning("SSH client not found.")
+        if not install_ssh():
+            print_error("Cannot proceed without SSH client.")
+            sys.exit(1)
+    
+    if not check_scp_installed():
+        print_error("SCP not found. Please install openssh-client.")
+        sys.exit(1)
+    
+    # Check for sshpass
+    try:
+        subprocess.run(['sshpass', '-V'], capture_output=True, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print_warning("sshpass not found. This tool provides password automation.")
+        install_sshpass()
+    
+    print_success("All dependencies checked!")
+    
+    try:
+        # Get connection details
+        user, host, port, password = get_connection_details()
+        
+        # Test connection
+        if not test_ssh_connection(user, host, port, password):
+            print_error("Connection test failed. Please check your credentials and try again.")
+            sys.exit(1)
+        
+        # Select file or folder
+        selected_path = select_file_or_folder()
+        if not selected_path:
+            print_info("Transfer cancelled.")
+            sys.exit(0)
+        
+        # Confirm transfer
+        path_obj = Path(selected_path)
+        item_type = "directory" if path_obj.is_dir() else "file"
+        
+        print(f"\n{Colors.BOLD}Transfer Summary:{Colors.ENDC}")
+        print(f"  Source: {selected_path} ({item_type})")
+        print(f"  Destination: {user}@{host}:{port}")
+        
+        confirm = input(f"\n{Colors.WARNING}Proceed with transfer? (y/N): {Colors.ENDC}").strip().lower()
+        if confirm != 'y':
+            print_info("Transfer cancelled.")
+            sys.exit(0)
+        
+        # Perform transfer
+        success = perform_transfer(selected_path, user, host, port, password)
+        
+        if success:
+            print_success("File transfer completed successfully!")
+        else:
+            print_error("File transfer failed. Please check the manual command above.")
+            
+    except KeyboardInterrupt:
+        print(f"\n\n{Colors.WARNING}Transfer cancelled by user.{Colors.ENDC}")
+        sys.exit(0)
+    except Exception as e:
+        print_error(f"Unexpected error: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
