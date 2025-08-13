@@ -125,11 +125,11 @@ def format_file_size(size_bytes):
         return f"{size:.1f} {units[unit_index]}"
 
 def select_file_or_folder():
-    """Interactive file/folder selection"""
+    """Interactive file/folder selection with navigation"""
     current_path = os.getcwd()
     
     while True:
-        print_header("FILE/FOLDER SELECTION")
+        print_header("FILE/FOLDER BROWSER")
         items, current_path = list_files_and_folders(current_path)
         
         if not items:
@@ -137,39 +137,75 @@ def select_file_or_folder():
             return None
         
         print(f"\n{Colors.BOLD}Current directory: {current_path}{Colors.ENDC}")
-        print(f"\n{Colors.CYAN}Select a file or folder to transfer:{Colors.ENDC}")
+        print(f"\n{Colors.CYAN}Choose an action:{Colors.ENDC}")
         
+        # Show items with action indicators
         for i, (path, display_name, is_dir) in enumerate(items, 1):
-            print(f"{Colors.BLUE}{i:2d}.{Colors.ENDC} {display_name}")
+            if path == "../":
+                print(f"{Colors.BLUE}{i:2d}.{Colors.ENDC} {display_name}")
+            elif is_dir and not display_name.startswith("📄"):
+                print(f"{Colors.BLUE}{i:2d}.{Colors.ENDC} {display_name} {Colors.GREEN}[Navigate/Select]{Colors.ENDC}")
+            else:
+                print(f"{Colors.BLUE}{i:2d}.{Colors.ENDC} {display_name} {Colors.GREEN}[Select for transfer]{Colors.ENDC}")
         
-        print(f"\n{Colors.WARNING}0. Cancel transfer{Colors.ENDC}")
+        print(f"\n{Colors.WARNING}Commands:{Colors.ENDC}")
+        print(f"  • Enter number to navigate into folder or select file/folder for transfer")
+        print(f"  • Type 'h' for home directory (/workspace)")
+        print(f"  • Type 'r' for root directory (/)")
+        print(f"  • Type 'q' to quit")
         
         try:
-            choice = input(f"\n{Colors.BOLD}Enter your choice (0-{len(items)}): {Colors.ENDC}").strip()
+            choice = input(f"\n{Colors.BOLD}Your choice: {Colors.ENDC}").strip().lower()
             
-            if choice == '0':
+            if choice == 'q':
                 return None
+            elif choice == 'h':
+                current_path = "/workspace" if os.path.exists("/workspace") else os.path.expanduser("~")
+                continue
+            elif choice == 'r':
+                current_path = "/"
+                continue
             
-            choice_idx = int(choice) - 1
-            if 0 <= choice_idx < len(items):
-                selected_path, display_name, is_dir = items[choice_idx]
-                
-                if selected_path == "../":
-                    # Navigate to parent directory
-                    current_path = str(Path(current_path).parent)
-                    continue
-                elif is_dir and not display_name.startswith("📄"):
-                    # Navigate into directory
-                    current_path = selected_path
-                    continue
+            # Try to parse as number
+            try:
+                choice_idx = int(choice) - 1
+                if 0 <= choice_idx < len(items):
+                    selected_path, display_name, is_dir = items[choice_idx]
+                    
+                    if selected_path == "../":
+                        # Navigate to parent directory
+                        current_path = str(Path(current_path).parent)
+                        continue
+                    elif is_dir and not display_name.startswith("📄"):
+                        # Ask user what they want to do with this directory
+                        print(f"\n{Colors.CYAN}You selected directory: {Colors.BOLD}{display_name.replace('📁 ', '')}{Colors.ENDC}")
+                        print(f"\n{Colors.YELLOW}What would you like to do?{Colors.ENDC}")
+                        print(f"  1. Navigate into this directory")
+                        print(f"  2. Select this entire directory for transfer")
+                        print(f"  3. Go back")
+                        
+                        dir_choice = input(f"\n{Colors.BOLD}Choice (1-3): {Colors.ENDC}").strip()
+                        
+                        if dir_choice == '1':
+                            # Navigate into directory
+                            current_path = selected_path
+                            continue
+                        elif dir_choice == '2':
+                            # Select directory for transfer
+                            print(f"\n{Colors.GREEN}Selected directory for transfer: {selected_path}{Colors.ENDC}")
+                            return selected_path
+                        else:
+                            # Go back to file browser
+                            continue
+                    else:
+                        # File selected for transfer
+                        print(f"\n{Colors.GREEN}Selected file for transfer: {selected_path}{Colors.ENDC}")
+                        return selected_path
                 else:
-                    # File or folder selected for transfer
-                    return selected_path
-            else:
-                print_error("Invalid choice. Please try again.")
+                    print_error("Invalid choice. Please try again.")
+            except ValueError:
+                print_error("Please enter a valid number or command (h/r/q).")
                 
-        except ValueError:
-            print_error("Please enter a valid number.")
         except KeyboardInterrupt:
             print("\n\nTransfer cancelled by user.")
             return None
