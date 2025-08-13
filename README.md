@@ -2,6 +2,26 @@
 
 Simple tools for transferring files between RunPod instances when you need to migrate data (e.g., when your pod gets stuck with zero GPUs).
 
+## Prerequisites
+
+Before using these tools, make sure:
+
+1. **You can run terminal commands** on your RunPod instances:
+   - Use the **Web Terminal** in RunPod's interface, OR
+   - Use a **terminal in Jupyter Notebook/Lab**
+   - **These tools will NOT work** if you can only access a graphical interface
+
+2. **TCP Port 22 is exposed** on your destination pod:
+   - Go to your pod settings: **Pod > Edit > TCP Ports**
+   - Add port **22** to the list if it's not already there
+   - This allows SSH connections from other pods
+
+3. **Linux-based RunPod template**: These tools work on Ubuntu/Debian-based images that support `apt-get` (most RunPod templates)
+
+4. **Network connectivity**: Your pods must be able to reach each other over the internet
+
+---
+
 ## SSH Password Setup
 
 Sets up password-based SSH access on your RunPod instance.
