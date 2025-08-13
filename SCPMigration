@@ -321,35 +321,121 @@ def test_ssh_connection(user, host, port, password):
         return False
 
 def perform_transfer(source_path, user, host, port, password):
-    """Perform the file transfer using SCP"""
+    """Perform the file transfer using SCP with compression options"""
     print_header("FILE TRANSFER")
     
     source_path_obj = Path(source_path)
     is_directory = source_path_obj.is_dir()
     
+    # Ask about compression for directories
+    compress = False
+    compress_format = "zip"
+    
+    if is_directory:
+        print(f"\n{Colors.CYAN}Directory transfer options:{Colors.ENDC}")
+        print(f"  1. Direct transfer (may fail with nested/long paths)")
+        print(f"  2. Compress to ZIP then transfer (recommended)")
+        print(f"  3. Compress to TAR.GZ then transfer")
+        
+        while True:
+            choice = input(f"\n{Colors.BOLD}Choose transfer method (1-3): {Colors.ENDC}").strip()
+            if choice == "1":
+                compress = False
+                break
+            elif choice == "2":
+                compress = True
+                compress_format = "zip"
+                break
+            elif choice == "3":
+                compress = True
+                compress_format = "tar.gz"
+                break
+            else:
+                print_error("Please enter 1, 2, or 3")
+    
     # Get destination path
-    default_dest = f"/workspace/{source_path_obj.name}"
+    if compress:
+        archive_name = f"{source_path_obj.name}.{compress_format}"
+        default_dest = f"/workspace/{archive_name}"
+    else:
+        default_dest = f"/workspace/{source_path_obj.name}"
+    
     dest_path = input(f"{Colors.BOLD}Destination path on remote server [{default_dest}]: {Colors.ENDC}").strip()
     if not dest_path:
         dest_path = default_dest
     
-    print_info(f"Transferring {'directory' if is_directory else 'file'}: {source_path}")
+    # Handle compression
+    temp_archive = None
+    if compress:
+        print_info(f"Compressing directory to {compress_format.upper()}...")
+        
+        try:
+            if compress_format == "zip":
+                import zipfile
+                temp_archive = f"/tmp/{source_path_obj.name}_{os.getpid()}.zip"
+                
+                with zipfile.ZipFile(temp_archive, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for root, dirs, files in os.walk(source_path):
+                        # Skip problematic directories
+                        dirs[:] = [d for d in dirs if not d.startswith('.') or d == '.ipynb_checkpoints']
+                        
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            arc_path = os.path.relpath(file_path, os.path.dirname(source_path))
+                            try:
+                                zipf.write(file_path, arc_path)
+                            except (OSError, ValueError) as e:
+                                print_warning(f"Skipping problematic file: {file_path} ({e})")
+                
+            else:  # tar.gz
+                import tarfile
+                temp_archive = f"/tmp/{source_path_obj.name}_{os.getpid()}.tar.gz"
+                
+                with tarfile.open(temp_archive, 'w:gz') as tar:
+                    tar.add(source_path, arcname=source_path_obj.name, 
+                           filter=lambda tarinfo: None if '.ipynb_checkpoints' in tarinfo.name and tarinfo.name.count('.ipynb_checkpoints') > 1 else tarinfo)
+            
+            source_to_transfer = temp_archive
+            print_success(f"Compression completed: {temp_archive}")
+            
+        except Exception as e:
+            print_error(f"Compression failed: {e}")
+            return False
+    else:
+        source_to_transfer = source_path
+    
+    print_info(f"Transferring {'compressed archive' if compress else ('directory' if is_directory else 'file')}: {os.path.basename(source_to_transfer)}")
     print_info(f"To: {user}@{host}:{dest_path}")
     
     # Build SCP command
     try:
-        if is_directory:
-            cmd = ['sshpass', '-p', password, 'scp', '-o', 'StrictHostKeyChecking=no',
-                   '-P', port, '-r', source_path, f'{user}@{host}:{dest_path}']
-        else:
-            cmd = ['sshpass', '-p', password, 'scp', '-o', 'StrictHostKeyChecking=no',
-                   '-P', port, source_path, f'{user}@{host}:{dest_path}']
+        cmd = ['sshpass', '-p', password, 'scp', '-o', 'StrictHostKeyChecking=no',
+               '-P', port, source_to_transfer, f'{user}@{host}:{dest_path}']
         
         print_info("Starting transfer...")
         result = subprocess.run(cmd, text=True)
         
+        # Cleanup temp archive
+        if temp_archive and os.path.exists(temp_archive):
+            os.remove(temp_archive)
+            print_info("Temporary archive cleaned up")
+        
         if result.returncode == 0:
             print_success("Transfer completed successfully!")
+            
+            # Provide extraction instructions
+            if compress:
+                print_info("To extract on the destination server:")
+                if compress_format == "zip":
+                    print(f"  {Colors.BOLD}unzip '{dest_path}'{Colors.ENDC}")
+                else:
+                    print(f"  {Colors.BOLD}tar -xzf '{dest_path}'{Colors.ENDC}")
+                    
+                # Offer to auto-extract
+                auto_extract = input(f"\n{Colors.YELLOW}Auto-extract on destination server? (y/N): {Colors.ENDC}").strip().lower()
+                if auto_extract == 'y':
+                    return auto_extract_remote(user, host, port, password, dest_path, compress_format)
+            
             return True
         else:
             print_error("Transfer failed!")
@@ -359,15 +445,48 @@ def perform_transfer(source_path, user, host, port, password):
         print_error("sshpass not found. Falling back to manual SCP command.")
         print_info("Please run the following command manually:")
         
-        if is_directory:
-            manual_cmd = f"scp -P {port} -r '{source_path}' {user}@{host}:{dest_path}"
-        else:
-            manual_cmd = f"scp -P {port} '{source_path}' {user}@{host}:{dest_path}"
-        
+        manual_cmd = f"scp -P {port} '{source_to_transfer}' {user}@{host}:{dest_path}"
         print(f"{Colors.BOLD}{manual_cmd}{Colors.ENDC}")
+        
+        # Cleanup temp archive
+        if temp_archive and os.path.exists(temp_archive):
+            os.remove(temp_archive)
+        
         return False
     except Exception as e:
         print_error(f"Transfer error: {e}")
+        
+        # Cleanup temp archive
+        if temp_archive and os.path.exists(temp_archive):
+            os.remove(temp_archive)
+        
+        return False
+
+def auto_extract_remote(user, host, port, password, archive_path, compress_format):
+    """Automatically extract archive on remote server"""
+    print_info("Extracting archive on remote server...")
+    
+    try:
+        if compress_format == "zip":
+            extract_cmd = f"cd $(dirname '{archive_path}') && unzip -o '{archive_path}' && rm '{archive_path}'"
+        else:
+            extract_cmd = f"cd $(dirname '{archive_path}') && tar -xzf '{archive_path}' && rm '{archive_path}'"
+        
+        cmd = ['sshpass', '-p', password, 'ssh', '-o', 'StrictHostKeyChecking=no',
+               f'{user}@{host}', '-p', port, extract_cmd]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            print_success("Archive extracted and cleaned up on remote server!")
+            return True
+        else:
+            print_error(f"Extraction failed: {result.stderr}")
+            print_info("You can extract manually using the commands shown above.")
+            return False
+            
+    except Exception as e:
+        print_error(f"Auto-extraction error: {e}")
         return False
 
 def install_sshpass():
