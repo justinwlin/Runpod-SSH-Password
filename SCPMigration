@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-RunPod File Transfer Tool v2.3
+RunPod File Transfer Tool v2.1
 A CLI utility for transferring files between RunPod instances using SCP.
 Author: Assistant
 Last Updated: 2025-08-12
@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 
 # Script version
-VERSION = "2.3"
+VERSION = "1.0.5"
 SCRIPT_NAME = "RunPod File Transfer Tool"
 
 class Colors:
@@ -21,8 +21,8 @@ class Colors:
     BLUE = '\033[94m'
     CYAN = '\033[96m'
     GREEN = '\033[92m'
-    WARNING = '\033[93m'
-    YELLOW = '\033[93m'
+    WARNING = '\033[91m'  # Changed from yellow to red for better visibility
+    YELLOW = '\033[91m'   # Changed from yellow to red for better visibility
     FAIL = '\033[91m'
     ENDC = '\033[0m'
     BOLD = '\033[1m'
