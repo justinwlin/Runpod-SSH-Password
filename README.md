@@ -41,18 +41,38 @@ wget https://raw.githubusercontent.com/justinwlin/Runpod-SSH-Password/main/passw
 **Features:**
 - **User detection**: Automatically works with current user (no root assumption)
 - **Password preservation**: Won't overwrite existing passwords unless you choose to
+- **SSH key compatibility**: Detects existing SSH keys and works alongside them
+- **Dual authentication**: Enables both SSH key and password authentication
 - **rsync examples**: Connection scripts include rsync commands for efficient transfers
 
-**Example Output:**
+**Example Output (with SSH keys detected):**
 ```
 Detected user: root
+✓ SSH keys detected for root
+SSH key authentication is already configured and will continue to work.
+This script will enable password authentication alongside your SSH keys.
+
 Password already exists for user root
 Do you want to:
-  1) Keep existing password (just enable SSH)
+  1) Keep existing password (just enable SSH password auth)
   2) Set a new password (will replace existing)
 Enter choice (1/2): 1
 
 Setup Completed Successfully!
+
+========================================
+SSH AUTHENTICATION METHODS
+========================================
+✓ SSH Key authentication: ENABLED
+✓ Password authentication: ENABLED
+
+You can connect using either method:
+  - SSH key (if you have the private key)
+  - Password (shown below)
+
+========================================
+SSH CONNECTION
+========================================
 Connect using: ssh root@69.30.85.203 -p 22119
 User: root
 Password: <existing password>

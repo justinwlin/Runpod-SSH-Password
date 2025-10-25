@@ -31,6 +31,26 @@ check_password_exists() {
     fi
 }
 
+# Function to check if SSH keys are configured
+check_ssh_keys() {
+    local username=$1
+    local home_dir
+
+    # Get home directory for user
+    if [ "$username" = "root" ]; then
+        home_dir="/root"
+    else
+        home_dir=$(eval echo "~$username")
+    fi
+
+    # Check for SSH keys
+    if [ -d "$home_dir/.ssh" ] && [ -f "$home_dir/.ssh/authorized_keys" ] && [ -s "$home_dir/.ssh/authorized_keys" ]; then
+        return 0  # SSH keys exist
+    else
+        return 1  # No SSH keys
+    fi
+}
+
 # Function to prompt for password
 get_password() {
     local username=$1
@@ -76,11 +96,19 @@ fi
 # Detect which user to configure
 print_color "blue" "Detected user: $CURRENT_USER"
 
+# Check for SSH keys
+if check_ssh_keys "$CURRENT_USER"; then
+    print_color "green" "✓ SSH keys detected for $CURRENT_USER"
+    print_color "blue" "SSH key authentication is already configured and will continue to work."
+    print_color "blue" "This script will enable password authentication alongside your SSH keys."
+    echo ""
+fi
+
 # Check if password already exists
 if check_password_exists "$CURRENT_USER"; then
     print_color "yellow" "Password already exists for user $CURRENT_USER"
     print_color "yellow" "Do you want to:"
-    print_color "yellow" "  1) Keep existing password (just enable SSH)"
+    print_color "yellow" "  1) Keep existing password (just enable SSH password auth)"
     print_color "yellow" "  2) Set a new password (will replace existing)"
     read -p "Enter choice (1/2): " password_choice
 
@@ -188,6 +216,21 @@ print_color "green" "Linux/Mac connection script created in /workspace."
 
 print_color "green" "Setup Completed Successfully!"
 echo ""
+
+# Check and display SSH key status
+if check_ssh_keys "$CURRENT_USER"; then
+    print_color "green" "========================================"
+    print_color "green" "SSH AUTHENTICATION METHODS"
+    print_color "green" "========================================"
+    print_color "green" "✓ SSH Key authentication: ENABLED"
+    print_color "green" "✓ Password authentication: ENABLED"
+    echo ""
+    print_color "blue" "You can connect using either method:"
+    print_color "blue" "  - SSH key (if you have the private key)"
+    print_color "blue" "  - Password (shown below)"
+    echo ""
+fi
+
 print_color "yellow" "========================================"
 print_color "yellow" "SSH CONNECTION"
 print_color "yellow" "========================================"
