@@ -168,12 +168,16 @@ echo "echo ========================================" >> /workspace/connect_windo
 echo "echo User: $CURRENT_USER" >> /workspace/connect_windows.bat
 echo "echo Password: $user_password" >> /workspace/connect_windows.bat
 echo "echo." >> /workspace/connect_windows.bat
-echo "echo To connect via SSH:" >> /workspace/connect_windows.bat
+echo "echo Connect via SSH:" >> /workspace/connect_windows.bat
 echo "echo ssh $CURRENT_USER@$RUNPOD_PUBLIC_IP -p $RUNPOD_TCP_PORT_22" >> /workspace/connect_windows.bat
 echo "echo." >> /workspace/connect_windows.bat
 echo "echo ========================================" >> /workspace/connect_windows.bat
-echo "echo FILE TRANSFER EXAMPLES (RSYNC)" >> /workspace/connect_windows.bat
+echo "echo FILE TRANSFER OPTIONS" >> /workspace/connect_windows.bat
 echo "echo ========================================" >> /workspace/connect_windows.bat
+echo "echo." >> /workspace/connect_windows.bat
+echo "echo OPTION 1: RSYNC (Recommended)" >> /workspace/connect_windows.bat
+echo "echo WARNING: Requires rsync on BOTH machines!" >> /workspace/connect_windows.bat
+echo "echo Install: apt-get update && apt-get install -y rsync" >> /workspace/connect_windows.bat
 echo "echo." >> /workspace/connect_windows.bat
 echo "echo Copy file TO pod:" >> /workspace/connect_windows.bat
 echo "echo rsync -rltvzP --no-perms --no-owner --no-group -e \"ssh -p $RUNPOD_TCP_PORT_22\" yourfile.txt $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/" >> /workspace/connect_windows.bat
@@ -181,8 +185,23 @@ echo "echo." >> /workspace/connect_windows.bat
 echo "echo Copy file FROM pod:" >> /workspace/connect_windows.bat
 echo "echo rsync -rltvzP --no-perms --no-owner --no-group -e \"ssh -p $RUNPOD_TCP_PORT_22\" $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/yourfile.txt ." >> /workspace/connect_windows.bat
 echo "echo." >> /workspace/connect_windows.bat
-echo "echo Copy entire folder TO pod:" >> /workspace/connect_windows.bat
+echo "echo Copy folder TO pod:" >> /workspace/connect_windows.bat
 echo "echo rsync -rltvzP --no-perms --no-owner --no-group -e \"ssh -p $RUNPOD_TCP_PORT_22\" yourfolder/ $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/" >> /workspace/connect_windows.bat
+echo "echo." >> /workspace/connect_windows.bat
+echo "echo OPTION 2: SCP (Standard - Works everywhere)" >> /workspace/connect_windows.bat
+echo "echo Copy file TO pod:" >> /workspace/connect_windows.bat
+echo "echo scp -P $RUNPOD_TCP_PORT_22 yourfile.txt $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/" >> /workspace/connect_windows.bat
+echo "echo." >> /workspace/connect_windows.bat
+echo "echo Copy file FROM pod:" >> /workspace/connect_windows.bat
+echo "echo scp -P $RUNPOD_TCP_PORT_22 $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/yourfile.txt ." >> /workspace/connect_windows.bat
+echo "echo." >> /workspace/connect_windows.bat
+echo "echo Copy folder TO pod (small folders):" >> /workspace/connect_windows.bat
+echo "echo scp -P $RUNPOD_TCP_PORT_22 -r yourfolder $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/" >> /workspace/connect_windows.bat
+echo "echo." >> /workspace/connect_windows.bat
+echo "echo Copy folder with many small files (recommended - zip first):" >> /workspace/connect_windows.bat
+echo "echo zip -r folder.zip yourfolder && scp -P $RUNPOD_TCP_PORT_22 folder.zip $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/ && rm folder.zip" >> /workspace/connect_windows.bat
+echo "echo Then extract on destination:" >> /workspace/connect_windows.bat
+echo "echo ssh $CURRENT_USER@$RUNPOD_PUBLIC_IP -p $RUNPOD_TCP_PORT_22 \"cd /workspace && unzip folder.zip && rm folder.zip\"" >> /workspace/connect_windows.bat
 echo "echo ========================================" >> /workspace/connect_windows.bat
 print_color "green" "Windows connection script created in /workspace."
 
@@ -195,12 +214,16 @@ echo "echo '========================================'" >> /workspace/connect_lin
 echo "echo 'User: $CURRENT_USER'" >> /workspace/connect_linux.sh
 echo "echo 'Password: $user_password'" >> /workspace/connect_linux.sh
 echo "echo ''" >> /workspace/connect_linux.sh
-echo "echo 'To connect via SSH:'" >> /workspace/connect_linux.sh
+echo "echo 'Connect via SSH:'" >> /workspace/connect_linux.sh
 echo "echo 'ssh $CURRENT_USER@$RUNPOD_PUBLIC_IP -p $RUNPOD_TCP_PORT_22'" >> /workspace/connect_linux.sh
 echo "echo ''" >> /workspace/connect_linux.sh
 echo "echo '========================================'" >> /workspace/connect_linux.sh
-echo "echo 'FILE TRANSFER EXAMPLES (RSYNC)'" >> /workspace/connect_linux.sh
+echo "echo 'FILE TRANSFER OPTIONS'" >> /workspace/connect_linux.sh
 echo "echo '========================================'" >> /workspace/connect_linux.sh
+echo "echo ''" >> /workspace/connect_linux.sh
+echo "echo 'OPTION 1: RSYNC (Recommended)'" >> /workspace/connect_linux.sh
+echo "echo 'WARNING: Requires rsync on BOTH machines!'" >> /workspace/connect_linux.sh
+echo "echo 'Install: apt-get update && apt-get install -y rsync'" >> /workspace/connect_linux.sh
 echo "echo ''" >> /workspace/connect_linux.sh
 echo "echo 'Copy file TO pod:'" >> /workspace/connect_linux.sh
 echo "echo 'rsync -rltvzP --no-perms --no-owner --no-group -e \"ssh -p $RUNPOD_TCP_PORT_22\" yourfile.txt $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/'" >> /workspace/connect_linux.sh
@@ -208,8 +231,23 @@ echo "echo ''" >> /workspace/connect_linux.sh
 echo "echo 'Copy file FROM pod:'" >> /workspace/connect_linux.sh
 echo "echo 'rsync -rltvzP --no-perms --no-owner --no-group -e \"ssh -p $RUNPOD_TCP_PORT_22\" $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/yourfile.txt .'" >> /workspace/connect_linux.sh
 echo "echo ''" >> /workspace/connect_linux.sh
-echo "echo 'Copy entire folder TO pod:'" >> /workspace/connect_linux.sh
+echo "echo 'Copy folder TO pod:'" >> /workspace/connect_linux.sh
 echo "echo 'rsync -rltvzP --no-perms --no-owner --no-group -e \"ssh -p $RUNPOD_TCP_PORT_22\" yourfolder/ $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/'" >> /workspace/connect_linux.sh
+echo "echo ''" >> /workspace/connect_linux.sh
+echo "echo 'OPTION 2: SCP (Standard - Works everywhere)'" >> /workspace/connect_linux.sh
+echo "echo 'Copy file TO pod:'" >> /workspace/connect_linux.sh
+echo "echo 'scp -P $RUNPOD_TCP_PORT_22 yourfile.txt $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/'" >> /workspace/connect_linux.sh
+echo "echo ''" >> /workspace/connect_linux.sh
+echo "echo 'Copy file FROM pod:'" >> /workspace/connect_linux.sh
+echo "echo 'scp -P $RUNPOD_TCP_PORT_22 $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/yourfile.txt .'" >> /workspace/connect_linux.sh
+echo "echo ''" >> /workspace/connect_linux.sh
+echo "echo 'Copy folder TO pod (small folders):'" >> /workspace/connect_linux.sh
+echo "echo 'scp -P $RUNPOD_TCP_PORT_22 -r yourfolder $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/'" >> /workspace/connect_linux.sh
+echo "echo ''" >> /workspace/connect_linux.sh
+echo "echo 'Copy folder with many small files (recommended - zip first):'" >> /workspace/connect_linux.sh
+echo "echo 'zip -r folder.zip yourfolder && scp -P $RUNPOD_TCP_PORT_22 folder.zip $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/ && rm folder.zip'" >> /workspace/connect_linux.sh
+echo "echo 'Then extract on destination:'" >> /workspace/connect_linux.sh
+echo "echo 'ssh $CURRENT_USER@$RUNPOD_PUBLIC_IP -p $RUNPOD_TCP_PORT_22 \"cd /workspace && unzip folder.zip && rm folder.zip\"'" >> /workspace/connect_linux.sh
 echo "echo '========================================'" >> /workspace/connect_linux.sh
 chmod +x /workspace/connect_linux.sh
 print_color "green" "Linux/Mac connection script created in /workspace."
@@ -234,13 +272,21 @@ fi
 print_color "yellow" "========================================"
 print_color "yellow" "SSH CONNECTION"
 print_color "yellow" "========================================"
-print_color "yellow" "Connect using: ssh $CURRENT_USER@$RUNPOD_PUBLIC_IP -p $RUNPOD_TCP_PORT_22"
+print_color "yellow" "Connect via SSH:"
+echo "ssh $CURRENT_USER@$RUNPOD_PUBLIC_IP -p $RUNPOD_TCP_PORT_22"
+echo ""
 print_color "yellow" "User: $CURRENT_USER"
 print_color "yellow" "Password: $user_password"
 echo ""
 print_color "blue" "========================================"
-print_color "blue" "FILE TRANSFER EXAMPLES (RSYNC)"
+print_color "blue" "FILE TRANSFER OPTIONS"
 print_color "blue" "========================================"
+echo ""
+print_color "green" "Option 1: RSYNC (Recommended - Fastest with compression & progress)"
+print_color "yellow" "⚠ IMPORTANT: Requires rsync on BOTH source and destination!"
+print_color "yellow" "  Install on source: apt-get update && apt-get install -y rsync"
+print_color "yellow" "  Install on destination: apt-get update && apt-get install -y rsync"
+echo ""
 print_color "blue" "Copy file TO pod:"
 echo "rsync -rltvzP --no-perms --no-owner --no-group -e 'ssh -p $RUNPOD_TCP_PORT_22' yourfile.txt $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/"
 echo ""
@@ -249,5 +295,25 @@ echo "rsync -rltvzP --no-perms --no-owner --no-group -e 'ssh -p $RUNPOD_TCP_PORT
 echo ""
 print_color "blue" "Copy entire folder TO pod:"
 echo "rsync -rltvzP --no-perms --no-owner --no-group -e 'ssh -p $RUNPOD_TCP_PORT_22' yourfolder/ $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/"
+echo ""
+echo ""
+print_color "green" "Option 2: SCP (Standard - Works everywhere)"
+print_color "blue" "Copy file TO pod:"
+echo "scp -P $RUNPOD_TCP_PORT_22 yourfile.txt $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/"
+echo ""
+print_color "blue" "Copy file FROM pod:"
+echo "scp -P $RUNPOD_TCP_PORT_22 $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/yourfile.txt ."
+echo ""
+print_color "blue" "Copy folder TO pod (small folders):"
+echo "scp -P $RUNPOD_TCP_PORT_22 -r yourfolder $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/"
+echo ""
+print_color "blue" "Copy folder with many small files (recommended - zip first):"
+echo "zip -r folder.zip yourfolder && scp -P $RUNPOD_TCP_PORT_22 folder.zip $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/ && rm folder.zip"
+print_color "blue" "Then extract on destination:"
+echo "ssh $CURRENT_USER@$RUNPOD_PUBLIC_IP -p $RUNPOD_TCP_PORT_22 'cd /workspace && unzip folder.zip && rm folder.zip'"
+echo ""
+echo ""
+print_color "green" "Option 3: Migration Tool (Interactive - Auto-handles everything)"
+echo "wget https://raw.githubusercontent.com/justinwlin/Runpod-SSH-Password/refs/heads/main/SCPMigration -O scp_migration.py && python3 scp_migration.py"
 echo ""
 print_color "green" "Connection scripts saved in /workspace/connect_windows.bat and /workspace/connect_linux.sh"
