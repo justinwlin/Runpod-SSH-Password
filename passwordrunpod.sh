@@ -148,13 +148,13 @@ echo "echo FILE TRANSFER EXAMPLES (RSYNC)" >> /workspace/connect_windows.bat
 echo "echo ========================================" >> /workspace/connect_windows.bat
 echo "echo." >> /workspace/connect_windows.bat
 echo "echo Copy file TO pod:" >> /workspace/connect_windows.bat
-echo "echo rsync -avzP -e \"ssh -p $RUNPOD_TCP_PORT_22\" yourfile.txt $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/" >> /workspace/connect_windows.bat
+echo "echo rsync -rltvzP --no-perms --no-owner --no-group -e \"ssh -p $RUNPOD_TCP_PORT_22\" yourfile.txt $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/" >> /workspace/connect_windows.bat
 echo "echo." >> /workspace/connect_windows.bat
 echo "echo Copy file FROM pod:" >> /workspace/connect_windows.bat
-echo "echo rsync -avzP -e \"ssh -p $RUNPOD_TCP_PORT_22\" $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/yourfile.txt ." >> /workspace/connect_windows.bat
+echo "echo rsync -rltvzP --no-perms --no-owner --no-group -e \"ssh -p $RUNPOD_TCP_PORT_22\" $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/yourfile.txt ." >> /workspace/connect_windows.bat
 echo "echo." >> /workspace/connect_windows.bat
 echo "echo Copy entire folder TO pod:" >> /workspace/connect_windows.bat
-echo "echo rsync -avzP -e \"ssh -p $RUNPOD_TCP_PORT_22\" yourfolder/ $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/" >> /workspace/connect_windows.bat
+echo "echo rsync -rltvzP --no-perms --no-owner --no-group -e \"ssh -p $RUNPOD_TCP_PORT_22\" yourfolder/ $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/" >> /workspace/connect_windows.bat
 echo "echo ========================================" >> /workspace/connect_windows.bat
 print_color "green" "Windows connection script created in /workspace."
 
@@ -175,13 +175,13 @@ echo "echo 'FILE TRANSFER EXAMPLES (RSYNC)'" >> /workspace/connect_linux.sh
 echo "echo '========================================'" >> /workspace/connect_linux.sh
 echo "echo ''" >> /workspace/connect_linux.sh
 echo "echo 'Copy file TO pod:'" >> /workspace/connect_linux.sh
-echo "echo 'rsync -avzP -e \"ssh -p $RUNPOD_TCP_PORT_22\" yourfile.txt $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/'" >> /workspace/connect_linux.sh
+echo "echo 'rsync -rltvzP --no-perms --no-owner --no-group -e \"ssh -p $RUNPOD_TCP_PORT_22\" yourfile.txt $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/'" >> /workspace/connect_linux.sh
 echo "echo ''" >> /workspace/connect_linux.sh
 echo "echo 'Copy file FROM pod:'" >> /workspace/connect_linux.sh
-echo "echo 'rsync -avzP -e \"ssh -p $RUNPOD_TCP_PORT_22\" $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/yourfile.txt .'" >> /workspace/connect_linux.sh
+echo "echo 'rsync -rltvzP --no-perms --no-owner --no-group -e \"ssh -p $RUNPOD_TCP_PORT_22\" $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/yourfile.txt .'" >> /workspace/connect_linux.sh
 echo "echo ''" >> /workspace/connect_linux.sh
 echo "echo 'Copy entire folder TO pod:'" >> /workspace/connect_linux.sh
-echo "echo 'rsync -avzP -e \"ssh -p $RUNPOD_TCP_PORT_22\" yourfolder/ $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/'" >> /workspace/connect_linux.sh
+echo "echo 'rsync -rltvzP --no-perms --no-owner --no-group -e \"ssh -p $RUNPOD_TCP_PORT_22\" yourfolder/ $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/'" >> /workspace/connect_linux.sh
 echo "echo '========================================'" >> /workspace/connect_linux.sh
 chmod +x /workspace/connect_linux.sh
 print_color "green" "Linux/Mac connection script created in /workspace."
@@ -199,12 +199,12 @@ print_color "blue" "========================================"
 print_color "blue" "FILE TRANSFER EXAMPLES (RSYNC)"
 print_color "blue" "========================================"
 print_color "blue" "Copy file TO pod:"
-echo "rsync -avzP -e 'ssh -p $RUNPOD_TCP_PORT_22' yourfile.txt $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/"
+echo "rsync -rltvzP --no-perms --no-owner --no-group -e 'ssh -p $RUNPOD_TCP_PORT_22' yourfile.txt $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/"
 echo ""
 print_color "blue" "Copy file FROM pod:"
-echo "rsync -avzP -e 'ssh -p $RUNPOD_TCP_PORT_22' $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/yourfile.txt ."
+echo "rsync -rltvzP --no-perms --no-owner --no-group -e 'ssh -p $RUNPOD_TCP_PORT_22' $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/yourfile.txt ."
 echo ""
 print_color "blue" "Copy entire folder TO pod:"
-echo "rsync -avzP -e 'ssh -p $RUNPOD_TCP_PORT_22' yourfolder/ $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/"
+echo "rsync -rltvzP --no-perms --no-owner --no-group -e 'ssh -p $RUNPOD_TCP_PORT_22' yourfolder/ $CURRENT_USER@$RUNPOD_PUBLIC_IP:/workspace/"
 echo ""
 print_color "green" "Connection scripts saved in /workspace/connect_windows.bat and /workspace/connect_linux.sh"
