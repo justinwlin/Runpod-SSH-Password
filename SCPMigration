@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 RunPod File Transfer Tool
-A CLI utility for transferring files between RunPod instances using SCP.
+A CLI utility for transferring files between RunPod instances using rsync.
 Author: Assistant
-Last Updated: 2025-08-12
+Last Updated: 2025-10-25
 """
 
 import os
@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 
 # Script version
-VERSION = "1.0.5"
+VERSION = "2.0.0"
 SCRIPT_NAME = "RunPod File Transfer Tool"
 
 class Colors:
@@ -52,12 +52,12 @@ def check_ssh_installed():
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False
 
-def check_scp_installed():
-    """Check if SCP is installed"""
+def check_rsync_installed():
+    """Check if rsync is installed"""
     try:
-        subprocess.run(['scp'], capture_output=True)
+        subprocess.run(['rsync', '--version'], capture_output=True, check=True)
         return True
-    except FileNotFoundError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         return False
 
 def install_ssh():
@@ -71,6 +71,18 @@ def install_ssh():
         return True
     except subprocess.CalledProcessError:
         print_error("Failed to install SSH client. Please install manually.")
+        return False
+
+def install_rsync():
+    """Install rsync"""
+    print_info("Installing rsync...")
+    try:
+        subprocess.run(['apt', 'update'], check=True, capture_output=True)
+        subprocess.run(['apt', 'install', '-y', 'rsync'], check=True, capture_output=True)
+        print_success("rsync installed successfully!")
+        return True
+    except subprocess.CalledProcessError:
+        print_error("Failed to install rsync. Please install manually.")
         return False
 
 def parse_ssh_command(ssh_command):
@@ -327,190 +339,96 @@ def test_ssh_connection(user, host, port, password):
         return False
 
 def perform_transfer(source_path, user, host, port, password):
-    """Perform the file transfer using SCP with compression options"""
+    """Perform the file transfer using rsync with compression"""
     print_header("FILE TRANSFER")
-    
+
     source_path_obj = Path(source_path)
     is_directory = source_path_obj.is_dir()
-    
-    # Automatic transfer method selection
-    compress = False
-    compress_format = "zip"
-    
+
     if is_directory:
-        print(f"\n{Colors.CYAN}📁 Directory detected - using ZIP compression for reliable transfer{Colors.ENDC}")
-        compress = True
-        compress_format = "zip"
+        print(f"\n{Colors.CYAN}📁 Directory detected - using rsync with compression{Colors.ENDC}")
     else:
-        print(f"\n{Colors.CYAN}📄 File detected - using direct SCP transfer{Colors.ENDC}")
-        compress = False
-    
+        print(f"\n{Colors.CYAN}📄 File detected - using rsync transfer{Colors.ENDC}")
+
     # Smart destination handling
     print_info("Determining optimal destination path...")
-    smart_dest = smart_destination_path(source_path, user, host, port, password, compress, compress_format)
-    
+    smart_dest = smart_destination_path_rsync(source_path, user, host, port, password)
+
     dest_path = input(f"{Colors.BOLD}Destination path [{smart_dest}]: {Colors.ENDC}").strip()
     if not dest_path:
         dest_path = smart_dest
     else:
         # User provided custom path, still check for conflicts
         dest_path = resolve_destination_conflict(user, host, port, password, dest_path, source_path_obj.name)
-    
-    # Handle compression
-    temp_archive = None
-    if compress:
-        print_info(f"Compressing directory to {compress_format.upper()}...")
-        
-        try:
-            if compress_format == "zip":
-                import zipfile
-                temp_archive = f"/tmp/{source_path_obj.name}_{os.getpid()}.zip"
-                
-                with zipfile.ZipFile(temp_archive, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                    for root, dirs, files in os.walk(source_path):
-                        # Skip problematic directories
-                        dirs[:] = [d for d in dirs if not d.startswith('.') or d == '.ipynb_checkpoints']
-                        
-                        for file in files:
-                            file_path = os.path.join(root, file)
-                            arc_path = os.path.relpath(file_path, os.path.dirname(source_path))
-                            try:
-                                zipf.write(file_path, arc_path)
-                            except (OSError, ValueError) as e:
-                                print_warning(f"Skipping problematic file: {file_path} ({e})")
-                
-            else:  # tar.gz
-                import tarfile
-                temp_archive = f"/tmp/{source_path_obj.name}_{os.getpid()}.tar.gz"
-                
-                with tarfile.open(temp_archive, 'w:gz') as tar:
-                    tar.add(source_path, arcname=source_path_obj.name, 
-                           filter=lambda tarinfo: None if '.ipynb_checkpoints' in tarinfo.name and tarinfo.name.count('.ipynb_checkpoints') > 1 else tarinfo)
-            
-            source_to_transfer = temp_archive
-            print_success(f"Compression completed: {temp_archive}")
-            
-        except Exception as e:
-            print_error(f"Compression failed: {e}")
-            return False
-    else:
-        source_to_transfer = source_path
-    
-    print_info(f"Transferring {'compressed archive' if compress else ('directory' if is_directory else 'file')}: {os.path.basename(source_to_transfer)}")
+
+    print_info(f"Transferring {('directory' if is_directory else 'file')}: {source_path_obj.name}")
     print_info(f"To: {user}@{host}:{dest_path}")
-    
-    # Build SCP command
+
+    # Build rsync command
     try:
-        # All transfers are now either files (direct) or compressed archives
-        cmd = ['sshpass', '-p', password, 'scp', '-o', 'StrictHostKeyChecking=no',
-               '-P', port, source_to_transfer, f'{user}@{host}:{dest_path}']
-        
-        print_info("Starting transfer...")
-        result = subprocess.run(cmd, text=True)
-        
-        # Cleanup temp archive
-        if temp_archive and os.path.exists(temp_archive):
-            os.remove(temp_archive)
-            print_info("Temporary archive cleaned up")
-        
+        # rsync with compression and progress
+        # -a: archive mode (preserves permissions, timestamps, etc)
+        # -v: verbose
+        # -z: compress during transfer
+        # -P: show progress and keep partial transfers
+        # --stats: show transfer statistics
+
+        rsync_cmd = [
+            'sshpass', '-p', password,
+            'rsync', '-avzP', '--stats',
+            '-e', f'ssh -p {port} -o StrictHostKeyChecking=no',
+            source_path if not is_directory else f'{source_path}/',
+            f'{user}@{host}:{dest_path}'
+        ]
+
+        print_info("Starting rsync transfer with compression...")
+        print_info("Progress will be displayed below:")
+        print(f"{Colors.CYAN}{'='*60}{Colors.ENDC}")
+
+        result = subprocess.run(rsync_cmd)
+
+        print(f"{Colors.CYAN}{'='*60}{Colors.ENDC}")
+
         if result.returncode == 0:
             print_success("Transfer completed successfully!")
-            
-            # Provide extraction instructions
-            if compress:
-                # Install unzip first
-                print_info("Installing unzip on destination server...")
-                unzip_installed = install_remote_dependencies(user, host, port, password)
-                
-                print_info("To extract on the destination server:")
-                if compress_format == "zip":
-                    print(f"  {Colors.BOLD}unzip '{dest_path}'{Colors.ENDC}")
-                else:
-                    print(f"  {Colors.BOLD}tar -xzf '{dest_path}'{Colors.ENDC}")
-                    
-                # Offer to auto-extract only if unzip was installed successfully
-                if unzip_installed or compress_format == "tar.gz":
-                    auto_extract = input(f"\n{Colors.YELLOW}Auto-extract on destination server? (y/N): {Colors.ENDC}").strip().lower()
-                    if auto_extract == 'y':
-                        return auto_extract_remote(user, host, port, password, dest_path, compress_format)
-                else:
-                    print_warning("Unzip installation failed. Please extract manually using the command above.")
-            
             return True
         else:
             print_error("Transfer failed!")
             return False
-            
+
     except FileNotFoundError:
-        print_error("sshpass not found. Falling back to manual SCP command.")
+        print_error("sshpass or rsync not found. Falling back to manual command.")
         print_info("Please run the following command manually:")
-        
-        manual_cmd = f"scp -P {port} '{source_to_transfer}' {user}@{host}:{dest_path}"
+
+        manual_cmd = f"rsync -avzP -e 'ssh -p {port}' '{source_path}' {user}@{host}:{dest_path}"
         print(f"{Colors.BOLD}{manual_cmd}{Colors.ENDC}")
-        
-        # Cleanup temp archive
-        if temp_archive and os.path.exists(temp_archive):
-            os.remove(temp_archive)
-        
+
         return False
     except Exception as e:
         print_error(f"Transfer error: {e}")
-        
-        # Cleanup temp archive
-        if temp_archive and os.path.exists(temp_archive):
-            os.remove(temp_archive)
-        
         return False
 
-def auto_extract_remote(user, host, port, password, archive_path, compress_format):
-    """Automatically extract archive on remote server"""
-    print_info("Extracting archive on remote server...")
-    
-    try:
-        if compress_format == "zip":
-            extract_cmd = f"cd $(dirname '{archive_path}') && unzip -o '{archive_path}' && rm '{archive_path}'"
-        else:
-            extract_cmd = f"cd $(dirname '{archive_path}') && tar -xzf '{archive_path}' && rm '{archive_path}'"
-        
-        cmd = ['sshpass', '-p', password, 'ssh', '-o', 'StrictHostKeyChecking=no',
-               f'{user}@{host}', '-p', port, extract_cmd]
-        
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            print_success("Archive extracted and cleaned up on remote server!")
-            return True
-        else:
-            print_error(f"Extraction failed: {result.stderr}")
-            print_info("You can extract manually using the commands shown above.")
-            return False
-            
-    except Exception as e:
-        print_error(f"Auto-extraction error: {e}")
-        return False
+def install_remote_rsync(user, host, port, password):
+    """Install rsync on remote server if not present"""
+    print_info("Checking for rsync on remote server...")
 
-def install_remote_dependencies(user, host, port, password):
-    """Install unzip and other dependencies on remote server"""
-    print_info("Installing extraction tools on remote server...")
-    
     try:
-        # Install unzip and tar
-        install_cmd = "apt-get update -qq && apt-get install -y unzip"
-        
+        check_cmd = "which rsync || (apt-get update -qq && apt-get install -y rsync)"
+
         cmd = ['sshpass', '-p', password, 'ssh', '-o', 'StrictHostKeyChecking=no',
-               f'{user}@{host}', '-p', port, install_cmd]
-        
+               f'{user}@{host}', '-p', port, check_cmd]
+
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        
+
         if result.returncode == 0:
-            print_success("Remote dependencies installed successfully!")
+            print_success("rsync is available on remote server!")
             return True
         else:
-            print_warning(f"Could not install dependencies: {result.stderr}")
+            print_warning(f"Could not verify/install rsync: {result.stderr}")
             return False
-            
+
     except Exception as e:
-        print_warning(f"Failed to install remote dependencies: {e}")
+        print_warning(f"Failed to check remote rsync: {e}")
         return False
 
 def generate_unique_filename(base_path):
@@ -574,59 +492,21 @@ def resolve_destination_conflict(user, host, port, password, dest_path, source_n
     
     return dest_path
 
-def smart_destination_path(source_path, user, host, port, password, compress=False, compress_format="zip"):
-    """Intelligently determine the best destination path"""
+def smart_destination_path_rsync(source_path, user, host, port, password):
+    """Intelligently determine the best destination path for rsync"""
     source_path_obj = Path(source_path)
-    source_abs = os.path.abspath(source_path)
-    
-    # Determine base destination
-    if compress:
-        archive_name = f"{source_path_obj.name}.{compress_format}"
-        base_dest = f"/workspace/{archive_name}"
-    else:
+
+    # Default to /workspace for Runpod
+    base_dest = f"/workspace/"
+
+    # For files, add filename; for directories, rsync handles it with trailing slash
+    if source_path_obj.is_file():
         base_dest = f"/workspace/{source_path_obj.name}"
-    
-    # Check for recursion (copying directory into itself)
-    if not compress and source_path_obj.is_dir():
-        # Check if we're trying to copy a directory into itself
-        dest_parent = "/workspace"
-        if source_abs == dest_parent or source_abs.startswith(dest_parent + "/"):
-            print_warning("Detected potential recursion - copying directory into itself!")
-            
-            # Auto-resolve by using a safe destination
-            safe_name = f"{source_path_obj.name}_transfer_{int(__import__('time').time())}"
-            base_dest = f"/tmp/{safe_name}"
-            print_success(f"Auto-resolved to safe destination: {base_dest}")
-    
+
     # Resolve any naming conflicts
     final_dest = resolve_destination_conflict(user, host, port, password, base_dest, source_path_obj.name)
-    
+
     return final_dest
-    """Automatically extract archive on remote server"""
-    print_info("Extracting archive on remote server...")
-    
-    try:
-        if compress_format == "zip":
-            extract_cmd = f"cd $(dirname '{archive_path}') && unzip -o '{archive_path}' && rm '{archive_path}'"
-        else:
-            extract_cmd = f"cd $(dirname '{archive_path}') && tar -xzf '{archive_path}' && rm '{archive_path}'"
-        
-        cmd = ['sshpass', '-p', password, 'ssh', '-o', 'StrictHostKeyChecking=no',
-               f'{user}@{host}', '-p', port, extract_cmd]
-        
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            print_success("Archive extracted and cleaned up on remote server!")
-            return True
-        else:
-            print_error(f"Extraction failed: {result.stderr}")
-            print_info("You can extract manually using the commands shown above.")
-            return False
-            
-    except Exception as e:
-        print_error(f"Auto-extraction error: {e}")
-        return False
 
 def install_sshpass():
     """Install sshpass for password automation"""
@@ -653,34 +533,39 @@ def main():
     
     # Check and install dependencies
     print_info("Checking dependencies...")
-    
+
     if not check_ssh_installed():
         print_warning("SSH client not found.")
         if not install_ssh():
             print_error("Cannot proceed without SSH client.")
             sys.exit(1)
-    
-    if not check_scp_installed():
-        print_error("SCP not found. Please install openssh-client.")
-        sys.exit(1)
-    
+
+    if not check_rsync_installed():
+        print_warning("rsync not found.")
+        if not install_rsync():
+            print_error("Cannot proceed without rsync.")
+            sys.exit(1)
+
     # Check for sshpass
     try:
         subprocess.run(['sshpass', '-V'], capture_output=True, check=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
         print_warning("sshpass not found. This tool provides password automation.")
         install_sshpass()
-    
+
     print_success("All dependencies checked!")
     
     try:
         # Get connection details
         user, host, port, password = get_connection_details()
-        
+
         # Test connection
         if not test_ssh_connection(user, host, port, password):
             print_error("Connection test failed. Please check your credentials and try again.")
             sys.exit(1)
+
+        # Ensure rsync is installed on remote server
+        install_remote_rsync(user, host, port, password)
         
         # Select file or folder
         selected_path = select_file_or_folder()

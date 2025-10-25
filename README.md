@@ -1,6 +1,6 @@
 # RunPod SSH Password Setup & File Transfer Tools
 
-Simple tools for transferring files between RunPod instances when you need to migrate data (e.g., when your pod gets stuck with zero GPUs).
+Simple tools for transferring files between RunPod instances using rsync when you need to migrate data (e.g., when your pod gets stuck with zero GPUs).
 
 ## Prerequisites
 
@@ -24,7 +24,7 @@ Before using these tools, make sure:
 
 ## SSH Password Setup
 
-Sets up password-based SSH access on your RunPod instance.
+Sets up password-based SSH access on your RunPod instance for the current user.
 
 ### Usage
 ```bash
@@ -33,22 +33,42 @@ wget https://raw.githubusercontent.com/justinwlin/Runpod-SSH-Password/main/passw
 
 ### What it does
 1. Installs SSH server if not present
-2. Enables root login with password
-3. Sets custom root password
-4. Creates connection scripts in `/workspace/`
+2. Detects current user (supports both root and non-root users)
+3. Checks if password already exists and prompts to keep or replace
+4. Enables password authentication for SSH
+5. Creates connection scripts with rsync examples in `/workspace/`
+
+**Features:**
+- **User detection**: Automatically works with current user (no root assumption)
+- **Password preservation**: Won't overwrite existing passwords unless you choose to
+- **rsync examples**: Connection scripts include rsync commands for efficient transfers
 
 **Example Output:**
 ```
+Detected user: root
+Password already exists for user root
+Do you want to:
+  1) Keep existing password (just enable SSH)
+  2) Set a new password (will replace existing)
+Enter choice (1/2): 1
+
 Setup Completed Successfully!
-You can now connect using: ssh root@69.30.85.203 -p 22119
-Password: helloworld
+Connect using: ssh root@69.30.85.203 -p 22119
+User: root
+Password: <existing password>
 ```
 
 ---
 
 ## File Transfer Tool
 
-Interactive tool for copying files/folders between RunPod instances when you need to migrate data (e.g., when your pod gets stuck with zero GPUs or you need to move to a different instance).
+Interactive tool for copying files/folders between RunPod instances using **rsync** when you need to migrate data (e.g., when your pod gets stuck with zero GPUs or you need to move to a different instance).
+
+**Why rsync?**
+- **Faster**: Compression during transfer
+- **Resume capable**: Can resume interrupted transfers
+- **Progress tracking**: Real-time transfer statistics
+- **Efficient**: Only transfers differences for repeated transfers
 
 ## Complete Migration Workflow
 
@@ -109,20 +129,34 @@ Enter password: hello
 
 #### Transfer Happens
 ```
-Directory detected - using ZIP compression for reliable transfer
-Compressing directory to ZIP...
+Directory detected - using rsync with compression
+Starting rsync transfer with compression...
+Progress will be displayed below:
+============================================================
+sending incremental file list
+models/
+models/model1.safetensors
+    1.23G 100%   45.67MB/s    0:00:26 (xfr#1, to-chk=2/4)
+models/model2.safetensors
+    2.45G 100%   48.23MB/s    0:00:52 (xfr#2, to-chk=1/4)
+
+Number of files: 4
+Total file size: 3.68G bytes
+Total transferred: 3.68G bytes
+============================================================
 Transfer completed successfully!
-Archive extracted and cleaned up on remote server!
 ```
 
 ---
 
 ## How It Works
 
-- **Files**: Transferred directly via SCP
-- **Folders**: Automatically compressed to ZIP, transferred, then extracted on destination
+- **rsync with compression**: All transfers use rsync with automatic compression (-z flag)
+- **Progress display**: Real-time progress bars and transfer statistics
+- **Resume capability**: Interrupted transfers can be resumed
 - **Navigation**: Browse with numbers, press `s` to switch to selection mode
 - **Selection**: Choose items to transfer, press `n` to go back to browsing
+- **Automatic installation**: rsync is automatically installed if not present
 
 ## Use Case
 
